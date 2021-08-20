@@ -61,6 +61,7 @@
     "base64-url": "^2.2.0",
     "blocked-at": "^1.1.2",
     "body-parser": "^1.18.2",
+    "box-node-sdk": "1.38.0",
     "csv-parse": "^4.8.6",
     "datauri": "^1.0.5",
     "do-wrapper": "^3.11.1",
