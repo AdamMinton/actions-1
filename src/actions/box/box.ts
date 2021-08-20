@@ -7,7 +7,7 @@ import * as winston from "winston"
 import * as Hub from "../../hub"
 
 export class BoxAction extends Hub.OAuthAction {
-    name = "Box"
+    name = "box"
     label = "Box"
     iconName = "box/box.png"
     description = "Send data directly to a Box folder."
