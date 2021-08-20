@@ -3,30 +3,10 @@ import * as chai from "chai"
 import * as https from "request-promise-native"
 import * as sinon from "sinon"
 
-import * as Hub from "../../hub"
-
 import { ActionCrypto } from "../../hub"
 import { BoxAction } from "./box"
 
 const action = new BoxAction()
-
-const stubFileName = "stubSuggestedFilename"
-const stubDirectory = "stubSuggestedDirectory"
-
-function expectBoxMatch(request: Hub.ActionRequest, optionsMatch: any) {
-
-    const fileUploadSpy = sinon.spy(async (_path: string, _contents: any) => Promise.resolve({}))
-
-    const stubClient = sinon.stub(action as any, "boxClientFromRequest")
-        .callsFake(() => ({
-            filesUpload: fileUploadSpy,
-        }))
-
-    return chai.expect(action.execute(request)).to.be.fulfilled.then(() => {
-        chai.expect(fileUploadSpy).to.have.been.calledWithMatch(optionsMatch)
-        stubClient.restore()
-    })
-}
 
 describe(`${action.constructor.name} unit tests`, () => {
     let encryptStub: any
@@ -40,138 +20,6 @@ describe(`${action.constructor.name} unit tests`, () => {
     afterEach(() => {
         encryptStub.restore()
         decryptStub.restore()
-    })
-
-    describe("action", () => {
-
-        it("has streaming disabled to support legacy schedules", () => {
-            chai.expect(action.usesStreaming).equals(false)
-        })
-
-        it("successfully interprets execute request params", () => {
-            const request = new Hub.ActionRequest()
-            request.attachment = { dataBuffer: Buffer.from("Hello"), fileExtension: "csv" }
-            request.formParams = { filename: stubFileName, directory: stubDirectory }
-            request.params = {
-                state_url: "https://looker.state.url.com/action_hub_state/asdfasdfasdfasdf",
-                state_json: `{"access_token": "token"}`,
-            }
-            return expectBoxMatch(request,
-                { path: `/${stubDirectory}/${stubFileName}.csv`, contents: Buffer.from("Hello") })
-        })
-
-        it("sets state to reset if error in fileUpload", (done) => {
-            const request = new Hub.ActionRequest()
-            request.attachment = { dataBuffer: Buffer.from("Hello"), fileExtension: "csv" }
-            request.formParams = { filename: stubFileName, directory: stubDirectory }
-            request.type = Hub.ActionType.Query
-            request.params = {
-                state_url: "https://looker.state.url.com/action_hub_state/asdfasdfasdfasdf",
-                state_json: `{"access_token": "token"}`,
-            }
-            const stubClient = sinon.stub(action as any, "boxClientFromRequest")
-                .callsFake(() => ({
-                    filesUpload: async () => Promise.reject("reject"),
-                }))
-            const resp = action.validateAndExecute(request)
-            chai.expect(resp).to.eventually.deep.equal({
-                success: false,
-                state: { data: "reset" },
-                refreshQuery: false,
-                validationErrors: [],
-            }).and.notify(stubClient.restore).and.notify(done)
-        })
-    })
-
-    describe("form", () => {
-        it("has form", () => {
-            chai.expect(action.hasForm).equals(true)
-        })
-
-        it("returns an oauth form on bad login", (done) => {
-            const stubClient = sinon.stub(action as any, "boxClientFromRequest")
-                .callsFake(() => ({
-                    filesListFolder: async (_: any) => Promise.reject("haha I failed auth"),
-                }))
-            const request = new Hub.ActionRequest()
-            request.params = {
-                state_url: "https://looker.state.url.com/action_hub_state/asdfasdfasdfasdf",
-                state_json: `{"access_token": "token"}`,
-            }
-            const form = action.validateAndFetchForm(request)
-            chai.expect(form).to.eventually.deep.equal({
-                fields: [{
-                    name: "login",
-                    type: "oauth_link",
-                    description: "In order to send to a Box file or folder now and in the future, you will need to log " +
-                        "in once to your Box account.",
-                    label: "Log in",
-                    oauth_url: `${process.env.ACTION_HUB_BASE_URL}/actions/box/oauth?state=eyJzdGF0ZXVybCI6Imh0dHBzOi8vbG9` +
-                        `va2VyLnN0YXRlLnVybC5jb20vYWN0aW9uX2h1Yl9zdGF0ZS9hc2RmYXNkZmFzZGZhc2RmIn0`,
-                }],
-                state: {},
-            }).and.notify(stubClient.restore).and.notify(done)
-        })
-
-        it("does not blow up on bad state JSON and returns an OAUTH form", (done) => {
-            const stubClient = sinon.stub(action as any, "boxClientFromRequest")
-                .callsFake(() => ({
-                    filesListFolder: async (_: any) => Promise.reject("haha I failed auth"),
-                }))
-            const request = new Hub.ActionRequest()
-            request.params = {
-                state_url: "https://looker.state.url.com/action_hub_state/asdfasdfasdfasdf",
-                state_json: `{"access_token": "token"}`,
-            }
-            const form = action.validateAndFetchForm(request)
-            chai.expect(form).to.eventually.deep.equal({
-                fields: [{
-                    name: "login",
-                    type: "oauth_link",
-                    description: "In order to send to a Box file or folder now and in the future, you will need to log " +
-                        "in once to your Box account.",
-                    label: "Log in",
-                    oauth_url: `${process.env.ACTION_HUB_BASE_URL}/actions/box/oauth?state=eyJzdGF0ZXVybCI6Imh0dHBzOi8vbG9` +
-                        `va2VyLnN0YXRlLnVybC5jb20vYWN0aW9uX2h1Yl9zdGF0ZS9hc2RmYXNkZmFzZGZhc2RmIn0`,
-                }],
-                state: {},
-            }).and.notify(stubClient.restore).and.notify(done)
-        })
-
-        it("returns correct fields on oauth success", (done) => {
-            const stubClient = sinon.stub(action as any, "boxClientFromRequest")
-                .callsFake(() => ({
-                    filesListFolder: async (_: any) => Promise.resolve({
-                        entries: [{
-                            "name": "fake_name",
-                            "label": "fake_label",
-                            ".tag": "folder"
-                        }],
-                    }),
-                }))
-            const request = new Hub.ActionRequest()
-            request.params = {
-                appKey: "mykey",
-                secretKey: "mySecret",
-            }
-            const form = action.validateAndFetchForm(request)
-            chai.expect(form).to.eventually.deep.equal({
-                fields: [{
-                    default: "__root",
-                    description: "Box folder where your file will be saved",
-                    label: "Select folder to save file",
-                    name: "directory",
-                    options: [{ name: "__root", label: "Home" }, { name: "fake_name", label: "fake_name" }],
-                    required: true,
-                    type: "select",
-                }, {
-                    label: "Enter a name",
-                    name: "filename",
-                    type: "string",
-                    required: true,
-                }],
-            }).and.notify(stubClient.restore).and.notify(done)
-        })
     })
 
     describe("oauth", () => {
