@@ -9,7 +9,7 @@ import * as Hub from "../../hub"
 export class BoxAction extends Hub.OAuthAction {
     name = "Box"
     label = "Box"
-    iconName = "Box/box.png"
+    iconName = "box/box.png"
     description = "Send data directly to a Box folder."
     supportedActionTypes = [Hub.ActionType.Query, Hub.ActionType.Dashboard]
     usesStreaming = false
